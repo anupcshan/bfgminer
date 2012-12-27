@@ -38,6 +38,12 @@ static const unsigned int sha256_consts[] = {
     0x90befffa, 0xa4506ceb, 0xbef9a3f7, 0xc67178f2
 };
 
+static __inline__ unsigned long long rdtsc(void)
+{
+  unsigned hi, lo;
+  __asm__ __volatile__ ("rdtsc" : "=a"(lo), "=d"(hi));
+  return ( (unsigned long long)lo)|( ((unsigned long long)hi)<<32 );
+}
 
 static inline __m128i Ch(const __m128i b, const __m128i c, const __m128i d) {
     return _mm_xor_si128(_mm_and_si128(b,c),_mm_andnot_si128(b,d));
@@ -47,12 +53,12 @@ static inline __m128i Maj(const __m128i b, const __m128i c, const __m128i d) {
     return _mm_xor_si128(_mm_xor_si128(_mm_and_si128(b,c),_mm_and_si128(b,d)),_mm_and_si128(c,d));
 }
 
-static inline __m128i  ROTR(__m128i x, const int n) {
-    return _mm_or_si128(_mm_srli_epi32(x, n),_mm_slli_epi32(x, 32 - n));
-}
-
 static inline __m128i SHR(__m128i x, const int n) {
     return _mm_srli_epi32(x, n);
+}
+
+static inline __m128i  ROTR(__m128i x, const int n) {
+    return _mm_or_si128(SHR(x, n),_mm_slli_epi32(x, 32 - n));
 }
 
 /* SHA256 Functions */
@@ -101,49 +107,57 @@ static const unsigned int pSHA256InitState[8] =
 
 
 bool ScanHash_4WaySSE2(struct thr_info*thr, const unsigned char *pmidstate,
-	unsigned char *pdata,
-	unsigned char *phash1, unsigned char *phash,
-	const unsigned char *ptarget,
-	uint32_t max_nonce, uint32_t *last_nonce,
-	uint32_t nonce)
+    unsigned char *pdata,
+    unsigned char *phash1, unsigned char *phash,
+    const unsigned char *ptarget,
+    uint32_t max_nonce, uint32_t *last_nonce,
+    uint32_t nonce)
 {
     unsigned int *nNonce_p = (unsigned int*)(pdata + 76);
 
-	pdata += 64;
+    pdata += 64;
+
+    uint32_t start_nonce = nonce;
+    unsigned long long start = rdtsc();
 
     for (;;)
     {
-        unsigned int thash[9][NPAR] __attribute__((aligned(128)));
-	int j;
+	    unsigned int thash[9][NPAR] __attribute__((aligned(128)));
+	    int j;
 
-	nonce += NPAR;
-	*nNonce_p = nonce;
+	    nonce += NPAR;
+	    *nNonce_p = nonce;
 
-        DoubleBlockSHA256(pdata, phash1, pmidstate, thash, pSHA256InitState);
+	    DoubleBlockSHA256(pdata, phash1, pmidstate, thash, pSHA256InitState);
 
-        for (j = 0; j < NPAR; j++)
-        {
-            if (unlikely(thash[7][j] == 0))
-            {
-		int i;
+	    for (j = 0; j < NPAR; j++)
+	    {
+		    if (unlikely(thash[7][j] == 0))
+		    {
+			    int i;
 
-                for (i = 0; i < 32/4; i++)
-                    ((unsigned int*)phash)[i] = thash[i][j];
+			    for (i = 0; i < 32/4; i++)
+				    ((unsigned int*)phash)[i] = thash[i][j];
 
-		if (fulltest(phash, ptarget)) {
-					nonce += j;
-					*last_nonce = nonce;
-					*nNonce_p = nonce;
-					return true;
-		}
-            }
-        }
+			    if (fulltest(phash, ptarget)) {
+				    nonce += j;
+				    *last_nonce = nonce;
+				    *nNonce_p = nonce;
+				    return true;
+			    }
+		    }
+	    }
 
-        if ((nonce >= max_nonce) || thr->work_restart)
-        {
-            *last_nonce = nonce;
-            return false;
-        }
+	    if ((nonce >= max_nonce) || thr->work_restart)
+	    {
+		    unsigned long long end = rdtsc();
+		    unsigned long long elapsed = end - start;
+
+		    applog(LOG_ERR, "Elapsed: %llu microsec, Nonces: %d, Per Nonce: %f", elapsed, nonce - start_nonce,
+				    elapsed * 1.0 / (nonce - start_nonce));
+		    *last_nonce = nonce;
+		    return false;
+	    }
     }
 }
 
@@ -317,8 +331,8 @@ static void DoubleBlockSHA256(const void* pin, void* pad, const void *pre, unsig
         SHA256ROUND(b, c, d, e, f, g, h, a, 63, w15);
 
 #define store_load(x, i, dest) \
-        T1 = _mm_set1_epi32((hPre)[i]); \
-        dest = _mm_add_epi32(T1, x);
+	T1 = _mm_set1_epi32((hPre)[i]); \
+	dest = _mm_add_epi32(T1, x);
 
         store_load(a, 0, w0);
         store_load(b, 1, w1);
