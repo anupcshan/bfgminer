@@ -787,7 +787,7 @@ static bool cpu_thread_prepare(struct thr_info *thr)
 
 static uint64_t cpu_can_limit_work(struct thr_info __maybe_unused *thr)
 {
-	return 0xffff;
+	return 0x2ffff;
 }
 
 static bool cpu_thread_init(struct thr_info *thr)

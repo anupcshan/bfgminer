@@ -6319,6 +6319,7 @@ void *miner_thread(void *userdata)
 			gettimeofday(&(work->tv_work_start), NULL);
 
 			thread_reportin(mythr);
+			applog(LOG_DEBUG, "Max nonce: %d", max_nonce);
 			hashes = api->scanhash(mythr, work, work->blk.nonce + max_nonce);
 			thread_reportin(mythr);
 
@@ -6365,12 +6366,17 @@ void *miner_thread(void *userdata)
 				if (likely(!api->can_limit_work || max_nonce == 0xffffffff))
 					continue;
 
-				mult = 1000000 / ((sdiff.tv_usec + 0x400) / 0x400) + 0x10;
+				mult = 1000000 / ((sdiff.tv_usec + 0x400) / 0x400) + 0x1;
 				mult *= cycle;
-				if (max_nonce > (0xffffffff * 0x400) / mult)
+				applog(LOG_DEBUG, "Multiplier: %lu", mult);
+				if (max_nonce > 0xffffffff / mult * 0x400) {
+					applog(LOG_DEBUG, "Setting max_nonce to infinity (%lu > %lu)", max_nonce, (0xffffffff * 0x400) / mult);
 					max_nonce = 0xffffffff;
-				else
-					max_nonce = (max_nonce * mult) / 0x400;
+				}
+				else {
+					applog(LOG_DEBUG, "Update max_nonce to %lu", max_nonce / 0x400 * mult);
+					max_nonce = max_nonce / 0x400 * mult;
+				}
 			} else if (unlikely(sdiff.tv_sec > cycle) && api->can_limit_work)
 				max_nonce = max_nonce * cycle / sdiff.tv_sec;
 			else if (unlikely(sdiff.tv_usec > 100000) && api->can_limit_work)

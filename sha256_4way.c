@@ -11,6 +11,7 @@
 #include <string.h>
 #include <assert.h>
 
+#include <smmintrin.h>
 #include <xmmintrin.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -38,7 +39,7 @@ static const unsigned int sha256_consts[] = {
     0x90befffa, 0xa4506ceb, 0xbef9a3f7, 0xc67178f2
 };
 
-static __inline__ unsigned long long rdtsc(void)
+static inline unsigned long long rdtsc(void)
 {
   unsigned hi, lo;
   __asm__ __volatile__ ("rdtsc" : "=a"(lo), "=d"(hi));
@@ -50,7 +51,33 @@ static inline __m128i Ch(const __m128i b, const __m128i c, const __m128i d) {
 }
 
 static inline __m128i Maj(const __m128i b, const __m128i c, const __m128i d) {
-    return _mm_xor_si128(_mm_xor_si128(_mm_and_si128(b,c),_mm_and_si128(b,d)),_mm_and_si128(c,d));
+/*    const __m128i xors = _mm_xor_si128(_mm_xor_si128(_mm_and_si128(b,c),_mm_and_si128(b,d)),_mm_and_si128(c,d));
+    const __m128i andor = _mm_or_si128(_mm_and_si128(b, c), _mm_and_si128(d, _mm_or_si128(b,c)));
+    const __m128i eq = _mm_cmpeq_epi32(xors, andor);
+    int xorslsw, andorlsw, i;
+    xorslsw = _mm_extract_epi32(xors, 0);
+    andorlsw = _mm_extract_epi32(andor, 0);
+    if (xorslsw != andorlsw) {
+	    applog(LOG_ERR, "Error!!! %d %d", xorslsw, andorlsw);
+    }
+    xorslsw = _mm_extract_epi32(xors, 1);
+    andorlsw = _mm_extract_epi32(andor, 1);
+    if (xorslsw != andorlsw) {
+	    applog(LOG_ERR, "Error!!! %d %d", xorslsw, andorlsw);
+    }
+    xorslsw = _mm_extract_epi32(xors, 2);
+    andorlsw = _mm_extract_epi32(andor, 2);
+    if (xorslsw != andorlsw) {
+	    applog(LOG_ERR, "Error!!! %d %d", xorslsw, andorlsw);
+    }
+    xorslsw = _mm_extract_epi32(xors, 3);
+    andorlsw = _mm_extract_epi32(andor, 3);
+    if (xorslsw != andorlsw) {
+	    applog(LOG_ERR, "Error!!! %d %d", xorslsw, andorlsw);
+    }
+*/
+//    return _mm_xor_si128(_mm_xor_si128(_mm_and_si128(b,c),_mm_and_si128(b,d)),_mm_and_si128(c,d));
+    return _mm_or_si128(_mm_and_si128(b, c), _mm_and_si128(d, _mm_or_si128(b,c)));
 }
 
 static inline __m128i SHR(__m128i x, const int n) {
@@ -64,7 +91,6 @@ static inline __m128i  ROTR(__m128i x, const int n) {
 /* SHA256 Functions */
 #define BIGSIGMA0_256(x)    (_mm_xor_si128(_mm_xor_si128(ROTR((x), 2),ROTR((x), 13)),ROTR((x), 22)))
 #define BIGSIGMA1_256(x)    (_mm_xor_si128(_mm_xor_si128(ROTR((x), 6),ROTR((x), 11)),ROTR((x), 25)))
-
 
 #define SIGMA0_256(x)       (_mm_xor_si128(_mm_xor_si128(ROTR((x), 7),ROTR((x), 18)), SHR((x), 3 )))
 #define SIGMA1_256(x)       (_mm_xor_si128(_mm_xor_si128(ROTR((x),17),ROTR((x), 19)), SHR((x), 10)))
@@ -85,7 +111,7 @@ static inline void store_epi32(const __m128i x, unsigned int *x0, unsigned int *
 #define add5(x0, x1, x2, x3, x4) _mm_add_epi32(add4(x0, x1, x2, x3), x4)
 
 #define SHA256ROUND(a, b, c, d, e, f, g, h, i, w)                       \
-    T1 = add5(h, BIGSIGMA1_256(e), Ch(e, f, g), _mm_set1_epi32(sha256_consts[i]), w);   \
+    T1 = add5(h, _mm_set1_epi32(sha256_consts[i]), w, BIGSIGMA1_256(e), Ch(e, f, g));   \
 d = _mm_add_epi32(d, T1);                                           \
 h = _mm_add_epi32(T1, _mm_add_epi32(BIGSIGMA0_256(a), Maj(a, b, c)));
 
@@ -153,8 +179,8 @@ bool ScanHash_4WaySSE2(struct thr_info*thr, const unsigned char *pmidstate,
 		    unsigned long long end = rdtsc();
 		    unsigned long long elapsed = end - start;
 
-		    applog(LOG_ERR, "Elapsed: %llu microsec, Nonces: %d, Per Nonce: %f", elapsed, nonce - start_nonce,
-				    elapsed * 1.0 / (nonce - start_nonce));
+		    applog(LOG_ERR, "Elapsed: %llu cycles, Nonces: %d, Per Nonce: %f, Nonce: %d, Start nonce: %d, Max nonce: %d", elapsed, nonce - start_nonce, elapsed * 1.0 / (nonce - start_nonce), nonce, start_nonce, max_nonce);
+		    usleep(1000);
 		    *last_nonce = nonce;
 		    return false;
 	    }
@@ -484,7 +510,7 @@ static void DoubleBlockSHA256(const void* pin, void* pad, const void *pre, unsig
         /* store resulsts directly in thash */
 #define store_2(x,i)  \
         w0 = _mm_set1_epi32(hInit[i]); \
-        *(__m128i *)&(thash)[i][0+k] = _mm_add_epi32(w0, x);
+        *(__m128i *)&(thash)[i][k] = _mm_add_epi32(w0, x);
 
         store_2(a, 0);
         store_2(b, 1);
@@ -494,7 +520,7 @@ static void DoubleBlockSHA256(const void* pin, void* pad, const void *pre, unsig
         store_2(f, 5);
         store_2(g, 6);
         store_2(h, 7);
-        *(__m128i *)&(thash)[8][0+k] = nonce;
+        *(__m128i *)&(thash)[8][k] = nonce;
     }
 
 }
