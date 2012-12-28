@@ -108,7 +108,7 @@ static inline void store_epi32(const __m128i x, unsigned int *x0, unsigned int *
 }
 
 #define add4(x0, x1, x2, x3) _mm_add_epi32(_mm_add_epi32(x0, x1),_mm_add_epi32( x2,x3))
-#define add5(x0, x1, x2, x3, x4) _mm_add_epi32(add4(x0, x1, x2, x3), x4)
+#define add5(x0, x1, x2, x3, x4) _mm_add_epi32(_mm_add_epi32(_mm_add_epi32(x0, x1), x4), _mm_add_epi32( x2,x3))
 
 #define SHA256ROUND(a, b, c, d, e, f, g, h, i, w)                       \
     T1 = add5(h, _mm_set1_epi32(sha256_consts[i]), w, BIGSIGMA1_256(e), Ch(e, f, g));   \
