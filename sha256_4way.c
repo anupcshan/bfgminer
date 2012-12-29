@@ -110,6 +110,13 @@ static inline void store_epi32(const __m128i x, unsigned int *x0, unsigned int *
 #define add4(x0, x1, x2, x3) _mm_add_epi32(_mm_add_epi32(x0, x1),_mm_add_epi32( x2,x3))
 #define add5(x0, x1, x2, x3, x4) _mm_add_epi32(_mm_add_epi32(_mm_add_epi32(x0, x1), x4), _mm_add_epi32( x2,x3))
 
+#define SHA256ROUND(a, b, c, d, e, f, g, h, i, w) \
+    BS1 = _mm_xor_si128(_mm_xor_si128(ROTR((e), 6),ROTR((e), 11)),ROTR((e), 25)); \
+    CH = _mm_xor_si128(_mm_and_si128(e,f),_mm_andnot_si128(e,g)); \
+    T1 = _mm_add_epi32(_mm_add_epi32(_mm_add_epi32(_mm_add_epi32(w, h), _mm_set1_epi32(sha256_consts[i])), BS1), CH); \
+    d = _mm_add_epi32(d, T1);                                           \
+    h = _mm_add_epi32(T1, _mm_add_epi32(BIGSIGMA0_256(a), Maj(a, b, c)));
+
 #define SHA256ROUND(a, b, c, d, e, f, g, h, i, w)                       \
     T1 = add5(h, _mm_set1_epi32(sha256_consts[i]), w, BIGSIGMA1_256(e), Ch(e, f, g));   \
 d = _mm_add_epi32(d, T1);                                           \
@@ -199,7 +206,7 @@ static void DoubleBlockSHA256(const void* pin, void* pad, const void *pre, unsig
     /* vectors used in calculation */
     __m128i w0, w1, w2, w3, w4, w5, w6, w7;
     __m128i w8, w9, w10, w11, w12, w13, w14, w15;
-    __m128i T1;
+    __m128i T1, BS1, CH;
     __m128i a, b, c, d, e, f, g, h;
     __m128i nonce, preNonce;
 
