@@ -186,7 +186,7 @@ bool ScanHash_4WaySSE2(struct thr_info*thr, const unsigned char *pmidstate,
 		    unsigned long long end = rdtsc();
 		    unsigned long long elapsed = end - start;
 
-		    applog(LOG_ERR, "Elapsed: %llu cycles, Nonces: %d, Per Nonce: %f, Nonce: %d, Start nonce: %d, Max nonce: %d", elapsed, nonce - start_nonce, elapsed * 1.0 / (nonce - start_nonce), nonce, start_nonce, max_nonce);
+		    applog(LOG_ERR, "Elapsed: %10llu cycles, Nonces: %7d, Per Nonce: %4.6f, Start nonce: %9d, Max nonce: %9d", elapsed, nonce - start_nonce, elapsed * 1.0 / (nonce - start_nonce), start_nonce, max_nonce);
 		    usleep(1000);
 		    *last_nonce = nonce;
 		    return false;
