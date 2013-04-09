@@ -111,7 +111,7 @@ static inline void store_epi32(const __m128i x, unsigned int *x0, unsigned int *
 #define add5(x0, x1, x2, x3, x4) _mm_add_epi32(_mm_add_epi32(_mm_add_epi32(x0, x1), x4), _mm_add_epi32( x2,x3))
 
 #define SHA256ROUND(a, b, c, d, e, f, g, h, i, w) \
-    BS1 = _mm_xor_si128(_mm_xor_si128(ROTR((e), 6),ROTR((e), 11)),ROTR((e), 25)); \
+    BS1 = _mm_xor_si128(_mm_xor_si128(_mm_or_si128(_mm_srli_epi32(e, 6),_mm_slli_epi32(e, 26)),ROTR((e), 11)),ROTR((e), 25)); \
     CH = _mm_xor_si128(_mm_and_si128(e,f),_mm_andnot_si128(e,g)); \
     T1 = _mm_add_epi32(_mm_add_epi32(_mm_add_epi32(_mm_add_epi32(w, h), _mm_set1_epi32(sha256_consts[i])), BS1), CH); \
     d = _mm_add_epi32(d, T1);                                           \
@@ -186,7 +186,7 @@ bool ScanHash_4WaySSE2(struct thr_info*thr, const unsigned char *pmidstate,
 		    unsigned long long end = rdtsc();
 		    unsigned long long elapsed = end - start;
 
-		    applog(LOG_ERR, "Elapsed: %10llu cycles, Nonces: %7d, Per Nonce: %4.6f, Start nonce: %9d, Max nonce: %9d", elapsed, nonce - start_nonce, elapsed * 1.0 / (nonce - start_nonce), start_nonce, max_nonce);
+		    applog(LOG_ERR, "Elapsed: %10llu cycles, Nonces: %7d, Per Nonce: %11.6f, Start nonce: %9d, Max nonce: %9d", elapsed, nonce - start_nonce, elapsed * 1.0 / (nonce - start_nonce), start_nonce, max_nonce);
 		    usleep(1000);
 		    *last_nonce = nonce;
 		    return false;
