@@ -69,7 +69,7 @@ static inline void BLEND_OP(int I, u32 *W)
   W[I] = s1(W[I-2]) + W[I-7] + s0(W[I-15]) + W[I-16];
 }
 
-static inline void sha256_transform(u32 *state, const u8 *input)
+static inline void sha256_transform(u32 *state, const u8 *input, u32 *output)
 {
   u32 a, b, c, d, e, f, g, h, t1, t2;
   u32 W[64];
@@ -224,20 +224,16 @@ static inline void sha256_transform(u32 *state, const u8 *input)
   t1 = a + e1(f) + Ch(f,g,h) + 0xc67178f2 + W[63];
   t2 = e0(b) + Maj(b,c,d);    e+=t1;    a=t1+t2;
 
-  state[0] += a; state[1] += b; state[2] += c; state[3] += d;
-  state[4] += e; state[5] += f; state[6] += g; state[7] += h;
+  output[0] = state[0] + a; output[1] = state[1] + b;
+  output[2] = state[2] + c; output[3] = state[3] + d;
+  output[4] = state[4] + e; output[5] = state[5] + f;
+  output[6] = state[6] + g; output[7] = state[7] + h;
 
 #if 0
   /* clear any sensitive info... */
   a = b = c = d = e = f = g = h = t1 = t2 = 0;
   memset(W, 0, 64 * sizeof(u32));
 #endif
-}
-
-static void runhash(void *state, const void *input, const void *init)
-{
-  memcpy(state, init, 32);
-  sha256_transform(state, input);
 }
 
 const uint32_t sha256_init_state[8] = {
@@ -264,8 +260,8 @@ bool scanhash_c(struct thr_info*thr, const unsigned char *midstate, unsigned cha
     n++;
     *nonce = n;
 
-    runhash(hash1, data, midstate);
-    runhash(hash, hash1, sha256_init_state);
+    sha256_transform(midstate, data, hash1);
+    sha256_transform(sha256_init_state, hash1, hash);
 
     if (unlikely((hash32[7] == 0) && fulltest(hash, target))) {
       *last_nonce = n;
